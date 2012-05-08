@@ -31,8 +31,8 @@ public class AMQPush {
 	HashMap<TByteArrayList, Listener> mListeners = new HashMap<TByteArrayList, Listener>();
 	
 	public AMQPush() {
+		loadAll();
 		//TODO:create AMQP thread
-		//TODO:load all notifiers from data base
 		//TODO:set apple push queue thread(s)
 		//TODO:add feedback thread (to call getPushedNotifications)
 		
@@ -48,7 +48,29 @@ public class AMQPush {
 		}
 	}
 	
-    @POST
+    private void loadAll() {
+        DBCollection rawCol = Database.dbInstance().getCollection(Listener.COLLECTION);
+        JacksonDBCollection<Listener, String> col = JacksonDBCollection.wrap(rawCol,
+        		Listener.class, String.class);
+
+        for(Listener l : col.find()) {
+        	TByteArrayList deviceToken = new TByteArrayList(l.deviceToken);
+        	mListeners.put(deviceToken, l);
+
+        	//add all registrations
+        	for(byte[] ident : l.identities) {
+        		TByteArrayList identity = new TByteArrayList(ident);
+        		HashSet<TByteArrayList> listeners = mNotifiers.get(identity);
+        		if(listeners == null) {
+        			listeners = new HashSet<TByteArrayList>();
+        			mNotifiers.put(identity, listeners);
+        		}
+        		listeners.add(deviceToken);
+        	}
+        }
+	}
+
+	@POST
     @Path("register")
     @Produces("application/json")
     public String register(Listener l) throws IOException {
