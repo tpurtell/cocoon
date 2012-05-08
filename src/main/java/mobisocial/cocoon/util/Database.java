@@ -18,6 +18,6 @@ public class Database {
 		}
 	}
 	public static DB dbInstance() {
-		return instance().getDB("musubi");
+		return instance().getDB("cocoon");
 	}
 }

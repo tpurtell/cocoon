@@ -16,5 +16,5 @@ public class Listener {
 	public String _id;
 	
 	public List<byte[]> identities;
-	public byte[] deviceToken;
+	public String deviceToken;
 }
