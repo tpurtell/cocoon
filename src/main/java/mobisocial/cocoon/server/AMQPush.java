@@ -75,13 +75,8 @@ public class AMQPush {
 		}
 		void amqp() throws Throwable {
 	        PushQueue appleQueue = null;
-			try {
-				appleQueue = Push.queue("keystore.p12", "keystore_password", false, 30);
-				appleQueue.start();
-			} catch (KeystoreException e) {
-				// TODO ignore for now
-				e.printStackTrace();
-			}
+			appleQueue = Push.queue("push.p12", "pusubi", false, 2);
+			appleQueue.start();
 			final PushQueue queue = appleQueue;
 
 	        
@@ -129,6 +124,7 @@ public class AMQPush {
 			for(TByteArrayList identity : notifiers) {
 				DeclareOk x = mIncomingChannel.queueDeclare();
 				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
+				System.out.println("listening " + identity_exchange_name);
 				mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
 				String consumerTag = mIncomingChannel.basicConsume(x.getQueue(), true, mConsumer);
 				synchronized(mNotifiers) {
@@ -140,6 +136,8 @@ public class AMQPush {
 			
 			for(;;) {
 				Runnable job = mJobs.poll();
+				if(job == null)
+					continue;
 				job.run();
 			}
 		}
@@ -233,13 +231,14 @@ public class AMQPush {
 			public void run() {
 				try {
 					DeclareOk x = mPushThread.mIncomingChannel.queueDeclare();
-				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
-				mPushThread.mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
-				String consumerTag = mPushThread.mIncomingChannel.basicConsume(x.getQueue(), true, mPushThread.mConsumer);
-				synchronized(mNotifiers) {
-					mQueues.put(identity, x.getQueue());
-					mConsumers.put(consumerTag, identity);
-				}
+					String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
+					System.out.println("listening " + identity_exchange_name);
+					mPushThread.mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
+					String consumerTag = mPushThread.mIncomingChannel.basicConsume(x.getQueue(), true, mPushThread.mConsumer);
+					synchronized(mNotifiers) {
+						mQueues.put(identity, x.getQueue());
+						mConsumers.put(consumerTag, identity);
+					}
 				} catch (Throwable t) {
 					throw new RuntimeException("failed to register", t);
 				}
@@ -259,6 +258,8 @@ public class AMQPush {
 					mQueues.remove(identity);
 					//TODO: update consumers
 				}
+				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
+				System.out.println("stop listening " + identity_exchange_name);
 				try {
 					mPushThread.mIncomingChannel.queueUnbind(queue, encodeAMQPname("ibeidentity-", identity.toArray()), "");
 				} catch (Throwable t) {
