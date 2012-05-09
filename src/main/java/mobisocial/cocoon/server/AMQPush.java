@@ -94,16 +94,19 @@ public class AMQPush {
 							return;
 						threadDevices.addAll(devices);
 					}
-					for(String device : threadDevices) {
-						try {
-							queue.add(new PushNotificationPayload("Musubis!!!"), device);
-						} catch (InvalidDeviceTokenFormatException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						} catch (JSONException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
+					PushNotificationPayload payload = PushNotificationPayload.complex();
+				    try {
+						payload.addAlert("Musubis!!!!");
+					    for(String device : threadDevices) {
+							try {
+								queue.add(payload, device);
+							} catch (InvalidDeviceTokenFormatException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
 						}
+					} catch (JSONException e1) {
+						//throw new RuntimeException("failed to build alert", e1);
 					}
 				}
 			};
