@@ -5,12 +5,18 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 import javapns.Push;
+import javapns.devices.Device;
 import javapns.devices.exceptions.InvalidDeviceTokenFormatException;
 import javapns.notification.PushNotificationPayload;
+import javapns.notification.PushedNotification;
+import javapns.notification.PushedNotifications;
+import javapns.notification.ResponsePacket;
 import javapns.notification.transmission.PushQueue;
 
 import javax.ws.rs.POST;
@@ -122,8 +128,39 @@ public class AMQPush {
 			}
 			System.out.println("done registrations");
 			
+			//TODO: don't do all the feedback stuff on one thread
+			long last = new Date().getTime();
 			for(;;) {
-				Runnable job = mJobs.poll();
+				Runnable job = mJobs.poll(60, TimeUnit.SECONDS);
+				long current = new Date().getTime();
+				if(current - last > 60 * 1000) {
+					PushedNotifications ps = queue.getPushedNotifications();
+					for(PushedNotification p : ps) {
+						if(p.isSuccessful())
+							continue;
+                        String invalidToken = p.getDevice().getToken();
+                        System.err.println("unregistering invalid token " + invalidToken);
+                        unregister(invalidToken);
+
+                        /* Find out more about what the problem was */  
+                        Exception theProblem = p.getException();
+                        theProblem.printStackTrace();
+
+                        /* If the problem was an error-response packet returned by Apple, get it */  
+                        ResponsePacket theErrorResponse = p.getResponse();
+                        if (theErrorResponse != null) {
+                                System.out.println(theErrorResponse.getMessage());
+                        }					
+                    }
+					last = new Date().getTime();
+
+					List<Device> inactiveDevices = Push.feedback("push.p12", "pusubi", false);
+	                for(Device d : inactiveDevices) {
+                        String invalidToken = d.getToken();
+                        System.err.println("unregistering feedback failed token token " + invalidToken);
+	                	unregister(invalidToken);
+	                }
+				}
 				if(job == null)
 					continue;
 				job.run();
