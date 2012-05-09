@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 
 import javapns.Push;
 import javapns.communication.exceptions.CommunicationException;
@@ -44,10 +45,11 @@ import com.sun.jersey.spi.resource.Singleton;
 @Path("/api/0/")
 public class AMQPush {
 	
+	HashMap<TByteArrayList, String> mQueues = new HashMap<TByteArrayList, String>();
 	HashMap<String, TByteArrayList> mConsumers = new HashMap<String, TByteArrayList>();
 	HashMap<TByteArrayList, HashSet<String>> mNotifiers = new HashMap<TByteArrayList, HashSet<String>>();
 	HashMap<String, Listener> mListeners = new HashMap<String, Listener>();
-	
+	LinkedBlockingDeque<Runnable> mJobs = new LinkedBlockingDeque<Runnable>();
 	String encodeAMQPname(String prefix, byte[] key) {
 		return prefix + Base64.encodeBase64(key, false, true) + "\n";
 	}
@@ -58,7 +60,11 @@ public class AMQPush {
     	return Base64.decodeBase64(name.substring(prefix.length()));
 	}
     
-    Thread mPushThread = new Thread() {
+    AMQPushThread mPushThread = new AMQPushThread();
+    
+    class AMQPushThread extends Thread{
+    	Channel mIncomingChannel;
+		private DefaultConsumer mConsumer;
 		@Override
 		public void run() {
         	try {
@@ -84,9 +90,9 @@ public class AMQPush {
 			connectionFactory.setConnectionTimeout(30 * 1000);
 			connectionFactory.setRequestedHeartbeat(30);
 			Connection connection = connectionFactory.newConnection();
-			Channel incomingChannel = connection.createChannel();
+			mIncomingChannel = connection.createChannel();
 			
-			DefaultConsumer consumer = new DefaultConsumer(incomingChannel) {
+			mConsumer = new DefaultConsumer(mIncomingChannel) {
 				@Override
 				public void handleDelivery(final String consumerTag, final Envelope envelope,
 						final BasicProperties properties, final byte[] body) throws IOException 
@@ -121,15 +127,21 @@ public class AMQPush {
 				notifiers.addAll(mNotifiers.keySet());
 			}
 			for(TByteArrayList identity : notifiers) {
-				DeclareOk x = incomingChannel.queueDeclare();
+				DeclareOk x = mIncomingChannel.queueDeclare();
 				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
-				incomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
-				String consumerTag = incomingChannel.basicConsume(x.getQueue(), true, consumer);
+				mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
+				String consumerTag = mIncomingChannel.basicConsume(x.getQueue(), true, mConsumer);
 				synchronized(mNotifiers) {
+					mQueues.put(identity, x.getQueue());
 					mConsumers.put(consumerTag, identity);
 				}
 			}
 			System.out.println("done registrations");
+			
+			for(;;) {
+				Runnable job = mJobs.poll();
+				job.run();
+			}
 		}
 	};
     
@@ -185,24 +197,24 @@ public class AMQPush {
 
         	//remove all old registrations
         	for(byte[] ident : existing.identities) {
-        		TByteArrayList identity = new TByteArrayList(ident);
+        		final TByteArrayList identity = new TByteArrayList(ident);
         		HashSet<String> listeners = mNotifiers.get(identity);
         		assert(listeners != null);
         		listeners.remove(l.deviceToken);
         		if(listeners.size() == 0) {
-        			//TODO: unregister on AMQP
+        			amqpUnregister(identity);
         			mNotifiers.remove(identity);
         		}
         	}
 
         	//add all new registrations
         	for(byte[] ident : l.identities) {
-        		TByteArrayList identity = new TByteArrayList(ident);
+        		final TByteArrayList identity = new TByteArrayList(ident);
         		HashSet<String> listeners = mNotifiers.get(identity);
         		if(listeners == null) {
         			listeners = new HashSet<String>();
         			mNotifiers.put(identity, listeners);
-            		//TODO: register
+        			amqpRegister(identity);
         		}
         		listeners.add(l.deviceToken);
         	}
@@ -215,6 +227,46 @@ public class AMQPush {
         col.update(match, l, true, false);
         return "ok";
     }
+	void amqpRegister(final TByteArrayList identity) {
+		mJobs.push(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					DeclareOk x = mPushThread.mIncomingChannel.queueDeclare();
+				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
+				mPushThread.mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
+				String consumerTag = mPushThread.mIncomingChannel.basicConsume(x.getQueue(), true, mPushThread.mConsumer);
+				synchronized(mNotifiers) {
+					mQueues.put(identity, x.getQueue());
+					mConsumers.put(consumerTag, identity);
+				}
+				} catch (Throwable t) {
+					throw new RuntimeException("failed to register", t);
+				}
+			}
+		});
+	}
+	void amqpUnregister(final TByteArrayList identity) {
+		mJobs.push(new Runnable() {
+			@Override
+			public void run() {
+				String queue = null;
+				synchronized(mNotifiers) {
+					queue = mQueues.get(identity);
+					//probably an error
+					if(queue == null)
+						return;
+					mQueues.remove(identity);
+					//TODO: update consumers
+				}
+				try {
+					mPushThread.mIncomingChannel.queueUnbind(queue, encodeAMQPname("ibeidentity-", identity.toArray()), "");
+				} catch (Throwable t) {
+					throw new RuntimeException("removing queue dynamically", t);
+				}
+			}
+		});
+	}
 
     @POST
     @Path("unregister")
@@ -234,7 +286,7 @@ public class AMQPush {
         		assert(listeners != null);
         		listeners.remove(deviceToken);
         		if(listeners.size() == 0) {
-        			//TODO: unregister on AMQP
+        			amqpUnregister(identity);
         			mNotifiers.remove(identity);
         		}
         	}
