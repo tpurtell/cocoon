@@ -1,6 +1,7 @@
 package mobisocial.cocoon.server;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -65,10 +66,8 @@ public class AMQPush {
 			}
 		}
 		void amqp() throws Throwable {
-	        PushQueue appleQueue = null;
-			appleQueue = Push.queue("push.p12", "pusubi", false, 2);
-			appleQueue.start();
-			final PushQueue queue = appleQueue;
+			final PushQueue queue = Push.queue("push.p12", "pusubi", false, 1);
+			queue.start();
 
 	        
 	        ConnectionFactory connectionFactory = new ConnectionFactory();
@@ -93,7 +92,7 @@ public class AMQPush {
 							return;
 						threadDevices.addAll(devices);
 					}
-					PushNotificationPayload payload = PushNotificationPayload.alert("Musubees attack.");
+					PushNotificationPayload payload = PushNotificationPayload.alert("musubees attack @ " + new Date());
 				    for(String device : threadDevices) {
 						try {
 							queue.add(payload, device);
