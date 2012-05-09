@@ -15,6 +15,6 @@ public class Listener {
 	@Id 
 	public String _id;
 	
-	public List<byte[]> identities;
+	public List<String> identityExchanges;
 	public String deviceToken;
 }

@@ -27,9 +27,9 @@ public class RegistrationTest extends TestCase {
 
         JSONObject request = new JSONObject();
         JSONArray identities = new JSONArray();
-        identities.put(Base64.encodeBase64String(new byte[] {0x10,0x20,0x30}))
-            .put(Base64.encodeBase64String(new byte[] {0x11,0x21,0x31}));
-        request.put("identities", identities);
+        identities.put("ident-1")
+            .put("ident-2");
+        request.put("identityExchanges", identities);
         request.put("deviceToken", Base64.encodeBase64String(new byte[] {0x7f,0x7e,0x7d}));
         BasicHttpEntity entity = new BasicHttpEntity();
         entity.setContentType("application/json");

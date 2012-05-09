@@ -1,53 +1,45 @@
 package mobisocial.cocoon.server;
 
-import gnu.trove.list.array.TByteArrayList;
-
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import javapns.Push;
-import javapns.communication.exceptions.CommunicationException;
-import javapns.communication.exceptions.KeystoreException;
 import javapns.devices.exceptions.InvalidDeviceTokenFormatException;
 import javapns.notification.PushNotificationPayload;
 import javapns.notification.transmission.PushQueue;
 
-import javax.management.RuntimeErrorException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-
-import org.apache.commons.codec.binary.Base64;
-import org.json.JSONException;
 
 import mobisocial.cocoon.model.Listener;
 import mobisocial.cocoon.util.Database;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
+import org.apache.commons.codec.binary.Base64;
+import org.json.JSONException;
+
 import com.mongodb.DBCollection;
+import com.rabbitmq.client.AMQP.BasicProperties;
 import com.rabbitmq.client.AMQP.Queue.DeclareOk;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
-import com.rabbitmq.client.AMQP.BasicProperties;
 import com.sun.jersey.spi.resource.Singleton;
 
 @Singleton
 @Path("/api/0/")
 public class AMQPush {
 	
-	HashMap<TByteArrayList, String> mQueues = new HashMap<TByteArrayList, String>();
-	HashMap<String, TByteArrayList> mConsumers = new HashMap<String, TByteArrayList>();
-	HashMap<TByteArrayList, HashSet<String>> mNotifiers = new HashMap<TByteArrayList, HashSet<String>>();
+	HashMap<String, String> mQueues = new HashMap<String, String>();
+	HashMap<String, String> mConsumers = new HashMap<String, String>();
+	HashMap<String, HashSet<String>> mNotifiers = new HashMap<String, HashSet<String>>();
 	HashMap<String, Listener> mListeners = new HashMap<String, Listener>();
 	LinkedBlockingDeque<Runnable> mJobs = new LinkedBlockingDeque<Runnable>();
 	String encodeAMQPname(String prefix, byte[] key) {
@@ -94,7 +86,7 @@ public class AMQPush {
 				{
 					HashSet<String> threadDevices = new HashSet<String>();
 					synchronized (mNotifiers) {
-						TByteArrayList identity = mConsumers.get(consumerTag);
+						String identity = mConsumers.get(consumerTag);
 						if(identity == null)
 							return;
 						HashSet<String> devices = mNotifiers.get(identity);
@@ -117,15 +109,15 @@ public class AMQPush {
 			};
 			
 			System.out.println("doing registrations");
-			Set<TByteArrayList> notifiers = new HashSet<TByteArrayList>();
+			Set<String> notifiers = new HashSet<String>();
 			synchronized(mNotifiers) {
 				notifiers.addAll(mNotifiers.keySet());
 			}
-			for(TByteArrayList identity : notifiers) {
+			for(String identity : notifiers) {
 				DeclareOk x = mIncomingChannel.queueDeclare();
-				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
-				System.out.println("listening " + identity_exchange_name);
-				mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
+				System.out.println("listening " + identity);
+				mIncomingChannel.exchangeDeclare(identity, "fanout", true);
+				mIncomingChannel.queueBind(x.getQueue(), identity, "");
 				String consumerTag = mIncomingChannel.basicConsume(x.getQueue(), true, mConsumer);
 				synchronized(mNotifiers) {
 					mQueues.put(identity, x.getQueue());
@@ -157,12 +149,11 @@ public class AMQPush {
         	mListeners.put(l.deviceToken, l);
 
         	//add all registrations
-        	for(byte[] ident : l.identities) {
-        		TByteArrayList identity = new TByteArrayList(ident);
-        		HashSet<String> listeners = mNotifiers.get(identity);
+        	for(String ident : l.identityExchanges) {
+        		HashSet<String> listeners = mNotifiers.get(ident);
         		if(listeners == null) {
         			listeners = new HashSet<String>();
-        			mNotifiers.put(identity, listeners);
+        			mNotifiers.put(ident, listeners);
         		}
         		listeners.add(l.deviceToken);
         	}
@@ -173,16 +164,17 @@ public class AMQPush {
     @Path("register")
     @Produces("application/json")
     public String register(Listener l) throws IOException {
-		boolean needs_update = false;
+		boolean needs_update = true;
         synchronized(mNotifiers) {
         	Listener existing = mListeners.get(l.deviceToken);
-        	if(existing != null && existing.identities.size() == l.identities.size()) { 
-        		Iterator<byte[]> a = existing.identities.iterator();
-        		Iterator<byte[]> b = l.identities.iterator();
+        	if(existing != null && existing.identityExchanges.size() == l.identityExchanges.size()) { 
+        		needs_update = false;
+        		Iterator<String> a = existing.identityExchanges.iterator();
+        		Iterator<String> b = l.identityExchanges.iterator();
         		while(a.hasNext()) {
-        			byte[] aa = a.next();
-        			byte[] bb = b.next();
-        			if(!Arrays.equals(aa, bb)) {
+        			String aa = a.next();
+        			String bb = b.next();
+        			if(!aa.equals(bb)) {
         				needs_update = true;
         				break;
         			}
@@ -192,27 +184,29 @@ public class AMQPush {
         		return "ok";
         	
         	mListeners.put(l.deviceToken, l);
+        	
+        	//TODO: set intersection to not wasteful tear up and down
 
-        	//remove all old registrations
-        	for(byte[] ident : existing.identities) {
-        		final TByteArrayList identity = new TByteArrayList(ident);
-        		HashSet<String> listeners = mNotifiers.get(identity);
-        		assert(listeners != null);
-        		listeners.remove(l.deviceToken);
-        		if(listeners.size() == 0) {
-        			amqpUnregister(identity);
-        			mNotifiers.remove(identity);
-        		}
+        	if(existing != null) {
+	        	//remove all old registrations
+	        	for(String ident : existing.identityExchanges) {
+	        		HashSet<String> listeners = mNotifiers.get(ident);
+	        		assert(listeners != null);
+	        		listeners.remove(l.deviceToken);
+	        		if(listeners.size() == 0) {
+	        			amqpUnregister(ident);
+	        			mNotifiers.remove(ident);
+	        		}
+	        	}
         	}
-
+        	
         	//add all new registrations
-        	for(byte[] ident : l.identities) {
-        		final TByteArrayList identity = new TByteArrayList(ident);
-        		HashSet<String> listeners = mNotifiers.get(identity);
+        	for(String ident : l.identityExchanges) {
+        		HashSet<String> listeners = mNotifiers.get(ident);
         		if(listeners == null) {
         			listeners = new HashSet<String>();
-        			mNotifiers.put(identity, listeners);
-        			amqpRegister(identity);
+        			mNotifiers.put(ident, listeners);
+        			amqpRegister(ident);
         		}
         		listeners.add(l.deviceToken);
         	}
@@ -225,15 +219,15 @@ public class AMQPush {
         col.update(match, l, true, false);
         return "ok";
     }
-	void amqpRegister(final TByteArrayList identity) {
+	void amqpRegister(final String identity) {
 		mJobs.push(new Runnable() {
 			@Override
 			public void run() {
 				try {
 					DeclareOk x = mPushThread.mIncomingChannel.queueDeclare();
-					String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
-					System.out.println("listening " + identity_exchange_name);
-					mPushThread.mIncomingChannel.queueBind(x.getQueue(), identity_exchange_name, "");
+					System.out.println("listening " + identity);
+					mPushThread.mIncomingChannel.exchangeDeclare(identity, "fanout", true);
+					mPushThread.mIncomingChannel.queueBind(x.getQueue(), identity, "");
 					String consumerTag = mPushThread.mIncomingChannel.basicConsume(x.getQueue(), true, mPushThread.mConsumer);
 					synchronized(mNotifiers) {
 						mQueues.put(identity, x.getQueue());
@@ -245,7 +239,7 @@ public class AMQPush {
 			}
 		});
 	}
-	void amqpUnregister(final TByteArrayList identity) {
+	void amqpUnregister(final String identity) {
 		mJobs.push(new Runnable() {
 			@Override
 			public void run() {
@@ -258,10 +252,9 @@ public class AMQPush {
 					mQueues.remove(identity);
 					//TODO: update consumers
 				}
-				String identity_exchange_name = encodeAMQPname("ibeidentity-", identity.toArray());
-				System.out.println("stop listening " + identity_exchange_name);
+				System.out.println("stop listening " + identity);
 				try {
-					mPushThread.mIncomingChannel.queueUnbind(queue, encodeAMQPname("ibeidentity-", identity.toArray()), "");
+					mPushThread.mIncomingChannel.queueUnbind(queue, identity, "");
 				} catch (Throwable t) {
 					throw new RuntimeException("removing queue dynamically", t);
 				}
@@ -281,14 +274,13 @@ public class AMQPush {
         	mListeners.remove(deviceToken);
 
         	//remove all old registrations
-        	for(byte[] ident : existing.identities) {
-        		TByteArrayList identity = new TByteArrayList(ident);
-        		HashSet<String> listeners = mNotifiers.get(identity);
+        	for(String ident : existing.identityExchanges) {
+        		HashSet<String> listeners = mNotifiers.get(ident);
         		assert(listeners != null);
         		listeners.remove(deviceToken);
         		if(listeners.size() == 0) {
-        			amqpUnregister(identity);
-        			mNotifiers.remove(identity);
+        			amqpUnregister(ident);
+        			mNotifiers.remove(ident);
         		}
         	}
         }
