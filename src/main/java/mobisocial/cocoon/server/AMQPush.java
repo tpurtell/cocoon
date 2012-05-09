@@ -21,7 +21,6 @@ import mobisocial.cocoon.util.Database;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import org.apache.commons.codec.binary.Base64;
-import org.json.JSONException;
 
 import com.mongodb.DBCollection;
 import com.rabbitmq.client.AMQP.BasicProperties;
@@ -94,19 +93,14 @@ public class AMQPush {
 							return;
 						threadDevices.addAll(devices);
 					}
-					PushNotificationPayload payload = PushNotificationPayload.complex();
-				    try {
-						payload.addAlert("Musubis!!!!");
-					    for(String device : threadDevices) {
-							try {
-								queue.add(payload, device);
-							} catch (InvalidDeviceTokenFormatException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							}
+					PushNotificationPayload payload = PushNotificationPayload.alert("Musubees attack.");
+				    for(String device : threadDevices) {
+						try {
+							queue.add(payload, device);
+						} catch (InvalidDeviceTokenFormatException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
 						}
-					} catch (JSONException e1) {
-						//throw new RuntimeException("failed to build alert", e1);
 					}
 				}
 			};
