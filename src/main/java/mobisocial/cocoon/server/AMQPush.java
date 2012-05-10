@@ -45,7 +45,7 @@ import com.sun.jersey.spi.resource.Singleton;
 @Path("/api/0/")
 public class AMQPush {
 	
-	TObjectIntHashMap<String> mCounts = new TObjectIntHashMap<>();
+	TObjectIntHashMap<String> mCounts = new TObjectIntHashMap<String>();
 	HashMap<String, String> mQueues = new HashMap<String, String>();
 	HashMap<String, String> mConsumers = new HashMap<String, String>();
 	HashMap<String, HashSet<String>> mNotifiers = new HashMap<String, HashSet<String>>();
