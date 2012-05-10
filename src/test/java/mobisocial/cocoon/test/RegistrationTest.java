@@ -1,4 +1,4 @@
-package mobisocial.messaging.client;
+package mobisocial.cocoon.test;
 
 import java.io.IOException;
 

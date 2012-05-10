@@ -1,5 +1,7 @@
 package mobisocial.cocoon.server;
 
+import gnu.trove.map.hash.TObjectIntHashMap;
+
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
@@ -43,6 +45,7 @@ import com.sun.jersey.spi.resource.Singleton;
 @Path("/api/0/")
 public class AMQPush {
 	
+	TObjectIntHashMap<String> mCounts = new TObjectIntHashMap<>();
 	HashMap<String, String> mQueues = new HashMap<String, String>();
 	HashMap<String, String> mConsumers = new HashMap<String, String>();
 	HashMap<String, HashSet<String>> mNotifiers = new HashMap<String, HashSet<String>>();
@@ -98,9 +101,13 @@ public class AMQPush {
 							return;
 						threadDevices.addAll(devices);
 					}
-					PushNotificationPayload payload = PushNotificationPayload.alert("musubees attack @ " + new Date());
 				    for(String device : threadDevices) {
 						try {
+							int new_value = 0;
+							synchronized (mCounts) {
+								new_value = mCounts.adjustOrPutValue(device, 1, 1);
+							}
+							PushNotificationPayload payload = PushNotificationPayload.combined("New Musubi Message @ " + new Date(), new_value, null);
 							queue.add(payload, device);
 						} catch (InvalidDeviceTokenFormatException e) {
 							// TODO Auto-generated catch block
@@ -199,6 +206,13 @@ public class AMQPush {
     public String register(Listener l) throws IOException {
 		boolean needs_update = true;
         synchronized(mNotifiers) {
+        	
+        	//clear pending message count on registration (e.g. amqp connected to drain messages)
+        	//TODO: this is not really right if the client fails to download all messages
+        	//before disconnecting
+			synchronized (mCounts) {
+				mCounts.put(l.deviceToken, 0);
+			}
         	Listener existing = mListeners.get(l.deviceToken);
         	if(existing != null && existing.identityExchanges.size() == l.identityExchanges.size()) { 
         		needs_update = false;
@@ -305,6 +319,9 @@ public class AMQPush {
         		return "ok";
         	
         	mListeners.remove(deviceToken);
+        	synchronized (mCounts) {
+        		mListeners.remove(deviceToken);
+			}
 
         	//remove all old registrations
         	for(String ident : existing.identityExchanges) {
