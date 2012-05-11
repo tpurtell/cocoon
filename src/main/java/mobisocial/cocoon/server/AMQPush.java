@@ -3,6 +3,7 @@ package mobisocial.cocoon.server;
 import gnu.trove.map.hash.TObjectIntHashMap;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +31,7 @@ import mobisocial.cocoon.util.Database;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import org.apache.commons.codec.binary.Base64;
+import org.json.JSONException;
 
 import com.mongodb.DBCollection;
 import com.rabbitmq.client.AMQP.BasicProperties;
@@ -107,9 +109,14 @@ public class AMQPush {
 							synchronized (mCounts) {
 								new_value = mCounts.adjustOrPutValue(device, 1, 1);
 							}
-							PushNotificationPayload payload = PushNotificationPayload.combined("New Musubi Message @ " + new Date(), new_value, null);
+							PushNotificationPayload payload = PushNotificationPayload.complex();
+							payload.addBadge(new_value);
+							payload.addCustomDictionary("when", (int)new Date().getTime());
 							queue.add(payload, device);
 						} catch (InvalidDeviceTokenFormatException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (JSONException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
@@ -206,6 +213,7 @@ public class AMQPush {
     public String register(Listener l) throws IOException {
 		boolean needs_update = true;
         synchronized(mNotifiers) {
+        	System.out.println( new Date() + "Registering device: " + l.deviceToken + " for identities " + Arrays.toString(l.identityExchanges.toArray()));
         	
         	//clear pending message count on registration (e.g. amqp connected to drain messages)
         	//TODO: this is not really right if the client fails to download all messages
