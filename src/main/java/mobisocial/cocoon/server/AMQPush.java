@@ -110,8 +110,8 @@ public class AMQPush {
 								new_value = mCounts.adjustOrPutValue(device, 1, 1);
 							}
 							PushNotificationPayload payload = PushNotificationPayload.complex();
+							payload.addAlert("New Musubi @ " + new Date().getTime());
 							payload.addBadge(new_value);
-							payload.addCustomDictionary("when", (int)new Date().getTime());
 							queue.add(payload, device);
 						} catch (InvalidDeviceTokenFormatException e) {
 							// TODO Auto-generated catch block
