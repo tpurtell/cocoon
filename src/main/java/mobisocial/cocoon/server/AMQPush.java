@@ -275,7 +275,7 @@ public class AMQPush {
         return "ok";
     }
 	void amqpRegister(final String identity) {
-		mJobs.push(new Runnable() {
+		mJobs.add(new Runnable() {
 			@Override
 			public void run() {
 				try {
@@ -295,7 +295,7 @@ public class AMQPush {
 		});
 	}
 	void amqpUnregister(final String identity) {
-		mJobs.push(new Runnable() {
+		mJobs.add(new Runnable() {
 			@Override
 			public void run() {
 				String queue = null;
