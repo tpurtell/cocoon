@@ -274,6 +274,17 @@ public class AMQPush {
         col.update(match, l, true, false);
         return "ok";
     }
+	@POST
+    @Path("clearunread")
+    @Produces("application/json")
+    public String clearUnread(String deviceToken) throws IOException {
+        synchronized(mNotifiers) {
+			synchronized (mCounts) {
+				mCounts.put(deviceToken, 0);
+			}
+        }
+        return "ok";
+    }
 	void amqpRegister(final String identity) {
 		mJobs.add(new Runnable() {
 			@Override
