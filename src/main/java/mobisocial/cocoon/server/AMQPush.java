@@ -78,7 +78,7 @@ public class AMQPush {
 		void amqp() throws Throwable {
 			final PushQueue dev_queue = Push.queue("push.p12", "pusubi", false, 1);
 			dev_queue.start();
-			final PushQueue prod_queue = Push.queue("pushprod.p12", "pusubi", false, 1);
+			final PushQueue prod_queue = Push.queue("pushprod.p12", "pusubi", true, 1);
 			prod_queue.start();
 
 	        
