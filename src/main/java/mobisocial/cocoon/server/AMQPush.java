@@ -31,7 +31,6 @@ import mobisocial.cocoon.util.Database;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import org.apache.commons.codec.binary.Base64;
-import org.json.JSONException;
 
 import com.mongodb.DBCollection;
 import com.rabbitmq.client.AMQP.BasicProperties;
@@ -77,8 +76,10 @@ public class AMQPush {
 			}
 		}
 		void amqp() throws Throwable {
-			final PushQueue queue = Push.queue("push.p12", "pusubi", false, 1);
-			queue.start();
+			final PushQueue dev_queue = Push.queue("push.p12", "pusubi", false, 1);
+			dev_queue.start();
+			final PushQueue prod_queue = Push.queue("pushprod.p12", "pusubi", false, 1);
+			prod_queue.start();
 
 	        
 	        ConnectionFactory connectionFactory = new ConnectionFactory();
@@ -106,11 +107,19 @@ public class AMQPush {
 				    for(String device : threadDevices) {
 						try {
 							int new_value = 0;
+							boolean production = false;
+							synchronized (mNotifiers) {
+								Listener l = mListeners.get(device);
+								production = l.production != null && l.production != false;
+							}
 							synchronized (mCounts) {
 								new_value = mCounts.adjustOrPutValue(device, 1, 1);
 							}
 							PushNotificationPayload payload = PushNotificationPayload.badge(new_value);
-							queue.add(payload, device);
+							if(!production)
+								dev_queue.add(payload, device);
+							else
+								prod_queue.add(payload, device);
 						} catch (InvalidDeviceTokenFormatException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -143,7 +152,7 @@ public class AMQPush {
 				Runnable job = mJobs.poll(60, TimeUnit.SECONDS);
 				long current = new Date().getTime();
 				if(current - last > 60 * 1000) {
-					PushedNotifications ps = queue.getPushedNotifications();
+					PushedNotifications ps = dev_queue.getPushedNotifications();
 					for(PushedNotification p : ps) {
 						if(p.isSuccessful())
 							continue;
@@ -217,7 +226,7 @@ public class AMQPush {
 				mCounts.put(l.deviceToken, 0);
 			}
         	Listener existing = mListeners.get(l.deviceToken);
-        	if(existing != null && existing.identityExchanges.size() == l.identityExchanges.size()) { 
+        	if(existing != null && existing.production == l.production && existing.identityExchanges.size() == l.identityExchanges.size()) { 
         		needs_update = false;
         		Iterator<String> a = existing.identityExchanges.iterator();
         		Iterator<String> b = l.identityExchanges.iterator();

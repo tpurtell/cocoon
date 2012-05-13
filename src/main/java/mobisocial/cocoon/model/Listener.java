@@ -17,4 +17,5 @@ public class Listener {
 	
 	public List<String> identityExchanges;
 	public String deviceToken;
+	public Boolean production;
 }
