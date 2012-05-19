@@ -301,6 +301,21 @@ public class AMQPush {
         }
         return "ok";
     }
+	public static class ResetUnread {
+		public String deviceToken;
+		public int count;
+	}
+	@POST
+    @Path("resetunread")
+    @Produces("application/json")
+    public String resetUnread(ResetUnread ru) throws IOException {
+        synchronized(mNotifiers) {
+			synchronized (mCounts) {
+				mCounts.put(ru.deviceToken, ru.count);
+			}
+        }
+        return "ok";
+    }
 	void amqpRegister(final String identity) {
 		mJobs.add(new Runnable() {
 			@Override
