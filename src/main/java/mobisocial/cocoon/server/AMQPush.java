@@ -69,10 +69,18 @@ public class AMQPush {
 		private DefaultConsumer mConsumer;
 		@Override
 		public void run() {
-        	try {
-				amqp();
-			} catch (Throwable e) {
-				throw new RuntimeException(e);
+			for(;;) {
+	        	try {
+					amqp();
+				} catch (Throwable e) {
+					throw new RuntimeException(e);
+				}
+	        	try {
+					Thread.sleep(30000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 		void amqp() throws Throwable {
@@ -81,107 +89,111 @@ public class AMQPush {
 			final PushQueue prod_queue = Push.queue("pushprod.p12", "pusubi", true, 1);
 			prod_queue.start();
 
+			for(;;) {
 	        
-	        ConnectionFactory connectionFactory = new ConnectionFactory();
-			connectionFactory.setHost("bumblebee.musubi.us");
-			connectionFactory.setConnectionTimeout(30 * 1000);
-			connectionFactory.setRequestedHeartbeat(30);
-			Connection connection = connectionFactory.newConnection();
-			mIncomingChannel = connection.createChannel();
-			
-			mConsumer = new DefaultConsumer(mIncomingChannel) {
-				@Override
-				public void handleDelivery(final String consumerTag, final Envelope envelope,
-						final BasicProperties properties, final byte[] body) throws IOException 
-				{
-					HashSet<String> threadDevices = new HashSet<String>();
-					synchronized (mNotifiers) {
-						String identity = mConsumers.get(consumerTag);
-						if(identity == null)
-							return;
-						HashSet<String> devices = mNotifiers.get(identity);
-						if(devices == null)
-							return;
-						threadDevices.addAll(devices);
-					}
-				    for(String device : threadDevices) {
-						try {
-							int new_value = 0;
-							boolean production = false;
-							synchronized (mNotifiers) {
-								Listener l = mListeners.get(device);
-								production = l.production != null && l.production != false;
+		        ConnectionFactory connectionFactory = new ConnectionFactory();
+				connectionFactory.setHost("bumblebee.musubi.us");
+				connectionFactory.setConnectionTimeout(30 * 1000);
+				connectionFactory.setRequestedHeartbeat(30);
+				Connection connection = connectionFactory.newConnection();
+				mIncomingChannel = connection.createChannel();
+				
+				mConsumer = new DefaultConsumer(mIncomingChannel) {
+					@Override
+					public void handleDelivery(final String consumerTag, final Envelope envelope,
+							final BasicProperties properties, final byte[] body) throws IOException 
+					{
+						HashSet<String> threadDevices = new HashSet<String>();
+						synchronized (mNotifiers) {
+							String identity = mConsumers.get(consumerTag);
+							if(identity == null)
+								return;
+							HashSet<String> devices = mNotifiers.get(identity);
+							if(devices == null)
+								return;
+							threadDevices.addAll(devices);
+						}
+					    for(String device : threadDevices) {
+							try {
+								int new_value = 0;
+								boolean production = false;
+								synchronized (mNotifiers) {
+									Listener l = mListeners.get(device);
+									production = l.production != null && l.production != false;
+								}
+								synchronized (mCounts) {
+									new_value = mCounts.adjustOrPutValue(device, 1, 1);
+								}
+								String msg = "New message";
+								//default sound?
+								PushNotificationPayload payload = PushNotificationPayload.combined(msg, new_value, null);
+								if(!production)
+									dev_queue.add(payload, device);
+								else
+									prod_queue.add(payload, device);
+							} catch (InvalidDeviceTokenFormatException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
 							}
-							synchronized (mCounts) {
-								new_value = mCounts.adjustOrPutValue(device, 1, 1);
-							}
-							PushNotificationPayload payload = PushNotificationPayload.badge(new_value);
-							if(!production)
-								dev_queue.add(payload, device);
-							else
-								prod_queue.add(payload, device);
-						} catch (InvalidDeviceTokenFormatException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
 						}
 					}
-				}
-			};
-			
-			System.out.println("doing registrations");
-			Set<String> notifiers = new HashSet<String>();
-			synchronized(mNotifiers) {
-				notifiers.addAll(mNotifiers.keySet());
-			}
-			for(String identity : notifiers) {
-				DeclareOk x = mIncomingChannel.queueDeclare();
-				System.out.println("listening " + identity);
-				mIncomingChannel.exchangeDeclare(identity, "fanout", true);
-				mIncomingChannel.queueBind(x.getQueue(), identity, "");
-				String consumerTag = mIncomingChannel.basicConsume(x.getQueue(), true, mConsumer);
+				};
+				
+				System.out.println("doing registrations");
+				Set<String> notifiers = new HashSet<String>();
 				synchronized(mNotifiers) {
-					mQueues.put(identity, x.getQueue());
-					mConsumers.put(consumerTag, identity);
+					notifiers.addAll(mNotifiers.keySet());
 				}
-			}
-			System.out.println("done registrations");
-			
-			//TODO: don't do all the feedback stuff on one thread
-			long last = new Date().getTime();
-			for(;;) {
-				Runnable job = mJobs.poll(60, TimeUnit.SECONDS);
-				long current = new Date().getTime();
-				if(current - last > 60 * 1000) {
-					PushedNotifications ps = dev_queue.getPushedNotifications();
-					for(PushedNotification p : ps) {
-						if(p.isSuccessful())
-							continue;
-                        String invalidToken = p.getDevice().getToken();
-                        System.err.println("unregistering invalid token " + invalidToken);
-                        unregister(invalidToken);
-
-                        /* Find out more about what the problem was */  
-                        Exception theProblem = p.getException();
-                        theProblem.printStackTrace();
-
-                        /* If the problem was an error-response packet returned by Apple, get it */  
-                        ResponsePacket theErrorResponse = p.getResponse();
-                        if (theErrorResponse != null) {
-                                System.out.println(theErrorResponse.getMessage());
-                        }					
-                    }
-					last = new Date().getTime();
-
-					List<Device> inactiveDevices = Push.feedback("push.p12", "pusubi", false);
-	                for(Device d : inactiveDevices) {
-                        String invalidToken = d.getToken();
-                        System.err.println("unregistering feedback failed token token " + invalidToken);
-	                	unregister(invalidToken);
-	                }
+				for(String identity : notifiers) {
+					DeclareOk x = mIncomingChannel.queueDeclare();
+					System.out.println("listening " + identity);
+					mIncomingChannel.exchangeDeclare(identity, "fanout", true);
+					mIncomingChannel.queueBind(x.getQueue(), identity, "");
+					String consumerTag = mIncomingChannel.basicConsume(x.getQueue(), true, mConsumer);
+					synchronized(mNotifiers) {
+						mQueues.put(identity, x.getQueue());
+						mConsumers.put(consumerTag, identity);
+					}
 				}
-				if(job == null)
-					continue;
-				job.run();
+				System.out.println("done registrations");
+				
+				//TODO: don't do all the feedback stuff on one thread
+				long last = new Date().getTime();
+				for(;;) {
+					Runnable job = mJobs.poll(60, TimeUnit.SECONDS);
+					long current = new Date().getTime();
+					if(current - last > 60 * 1000) {
+						PushedNotifications ps = dev_queue.getPushedNotifications();
+						for(PushedNotification p : ps) {
+							if(p.isSuccessful())
+								continue;
+	                        String invalidToken = p.getDevice().getToken();
+	                        System.err.println("unregistering invalid token " + invalidToken);
+	                        unregister(invalidToken);
+	
+	                        /* Find out more about what the problem was */  
+	                        Exception theProblem = p.getException();
+	                        theProblem.printStackTrace();
+	
+	                        /* If the problem was an error-response packet returned by Apple, get it */  
+	                        ResponsePacket theErrorResponse = p.getResponse();
+	                        if (theErrorResponse != null) {
+	                                System.out.println(theErrorResponse.getMessage());
+	                        }					
+	                    }
+						last = new Date().getTime();
+	
+						List<Device> inactiveDevices = Push.feedback("push.p12", "pusubi", false);
+		                for(Device d : inactiveDevices) {
+	                        String invalidToken = d.getToken();
+	                        System.err.println("unregistering feedback failed token token " + invalidToken);
+		                	unregister(invalidToken);
+		                }
+					}
+					if(job == null)
+						continue;
+					job.run();
+				}
 			}
 		}
 	};
