@@ -125,8 +125,7 @@ public class AMQPush {
 									new_value = mCounts.adjustOrPutValue(device, 1, 1);
 								}
 								String msg = "New message";
-								//default sound?
-								PushNotificationPayload payload = PushNotificationPayload.combined(msg, new_value, null);
+								PushNotificationPayload payload = PushNotificationPayload.combined(msg, new_value, "default");
 								if(!production)
 									dev_queue.add(payload, device);
 								else
