@@ -311,14 +311,12 @@ public class AMQPush {
     @Produces("application/json")
     public String clearUnread(String deviceToken) throws IOException {
         synchronized(mNotifiers) {
-			synchronized (mCounts) {
-				BadgeData bd = mCounts.get(deviceToken);
-				if(bd == null) {
-					bd = new BadgeData();
-					mCounts.put(deviceToken, bd);
-				}
-				bd.amqp = 0;
+			BadgeData bd = mCounts.get(deviceToken);
+			if(bd == null) {
+				bd = new BadgeData();
+				mCounts.put(deviceToken, bd);
 			}
+			bd.amqp = 0;
         }
         return "ok";
     }
@@ -330,16 +328,14 @@ public class AMQPush {
     @Path("resetunread")
     @Produces("application/json")
     public String resetUnread(ResetUnread ru) throws IOException {
-        synchronized(mNotifiers) {
-			synchronized (mCounts) {
-				BadgeData bd = mCounts.get(ru.deviceToken);
-				if(bd == null) {
-					bd = new BadgeData();
-					mCounts.put(ru.deviceToken, bd);
-				}
-				bd.local = ru.count;
+		synchronized (mCounts) {
+			BadgeData bd = mCounts.get(ru.deviceToken);
+			if(bd == null) {
+				bd = new BadgeData();
+				mCounts.put(ru.deviceToken, bd);
 			}
-        }
+			bd.local = ru.count;
+		}
         return "ok";
     }
 	void amqpRegister(final String identity) {
