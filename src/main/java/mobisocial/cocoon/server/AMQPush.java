@@ -323,7 +323,8 @@ public class AMQPush {
     @Path("clearunread")
     @Produces("application/json")
     public String clearUnread(String deviceToken) throws IOException {
-        synchronized(mNotifiers) {
+    	System.out.println( new Date() + "Clear unread " + deviceToken);
+        synchronized(mCounts) {
 			BadgeData bd = mCounts.get(deviceToken);
 			if(bd == null) {
 				bd = new BadgeData();
@@ -341,6 +342,7 @@ public class AMQPush {
     @Path("resetunread")
     @Produces("application/json")
     public String resetUnread(ResetUnread ru) throws IOException {
+    	System.out.println( new Date() + "reset unread " + ru.deviceToken + " to " + ru.count);
 		synchronized (mCounts) {
 			BadgeData bd = mCounts.get(ru.deviceToken);
 			if(bd == null) {
