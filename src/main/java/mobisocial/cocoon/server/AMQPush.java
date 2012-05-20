@@ -46,7 +46,12 @@ import com.sun.jersey.spi.resource.Singleton;
 @Path("/api/0/")
 public class AMQPush {
 	
-	TObjectIntHashMap<String> mCounts = new TObjectIntHashMap<String>();
+	static class BadgeData {
+		public int amqp;
+		public int local;
+	}
+	
+	HashMap<String, BadgeData> mCounts = new HashMap<String, BadgeData>();
 	HashMap<String, String> mQueues = new HashMap<String, String>();
 	HashMap<String, String> mConsumers = new HashMap<String, String>();
 	HashMap<String, HashSet<String>> mNotifiers = new HashMap<String, HashSet<String>>();
@@ -122,7 +127,13 @@ public class AMQPush {
 									production = l.production != null && l.production != false;
 								}
 								synchronized (mCounts) {
-									new_value = mCounts.adjustOrPutValue(device, 1, 1);
+									BadgeData bd = mCounts.get(device);
+									if(bd == null) {
+										bd = new BadgeData();
+										mCounts.put(device, bd);
+									}
+									bd.amqp++;
+									new_value = bd.amqp + bd.local;
 								}
 								String msg = "New message";
 								PushNotificationPayload payload = PushNotificationPayload.combined(msg, new_value, "default");
@@ -234,7 +245,13 @@ public class AMQPush {
         	//TODO: this is not really right if the client fails to download all messages
         	//before disconnecting
 			synchronized (mCounts) {
-				mCounts.put(l.deviceToken, 0);
+				BadgeData bd = mCounts.get(l.deviceToken);
+				if(bd == null) {
+					bd = new BadgeData();
+					mCounts.put(l.deviceToken, bd);
+				}
+				if(l.localUnread != null)
+					bd.local = l.localUnread;
 			}
         	Listener existing = mListeners.get(l.deviceToken);
         	if(existing != null && existing.production == l.production && existing.identityExchanges.size() == l.identityExchanges.size()) { 
@@ -295,7 +312,12 @@ public class AMQPush {
     public String clearUnread(String deviceToken) throws IOException {
         synchronized(mNotifiers) {
 			synchronized (mCounts) {
-				mCounts.put(deviceToken, 0);
+				BadgeData bd = mCounts.get(deviceToken);
+				if(bd == null) {
+					bd = new BadgeData();
+					mCounts.put(deviceToken, bd);
+				}
+				bd.amqp = 0;
 			}
         }
         return "ok";
@@ -310,7 +332,12 @@ public class AMQPush {
     public String resetUnread(ResetUnread ru) throws IOException {
         synchronized(mNotifiers) {
 			synchronized (mCounts) {
-				mCounts.put(ru.deviceToken, ru.count);
+				BadgeData bd = mCounts.get(ru.deviceToken);
+				if(bd == null) {
+					bd = new BadgeData();
+					mCounts.put(ru.deviceToken, bd);
+				}
+				bd.local = ru.count;
 			}
         }
         return "ok";
