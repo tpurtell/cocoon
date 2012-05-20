@@ -1,7 +1,5 @@
 package mobisocial.cocoon.server;
 
-import gnu.trove.map.hash.TObjectIntHashMap;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
@@ -31,6 +29,7 @@ import mobisocial.cocoon.util.Database;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import org.apache.commons.codec.binary.Base64;
+import org.json.JSONException;
 
 import com.mongodb.DBCollection;
 import com.rabbitmq.client.AMQP.BasicProperties;
@@ -121,6 +120,8 @@ public class AMQPush {
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
+								int amqp = 0;
+								int local = 0;
 								boolean production = false;
 								synchronized (mNotifiers) {
 									Listener l = mListeners.get(device);
@@ -133,10 +134,22 @@ public class AMQPush {
 										mCounts.put(device, bd);
 									}
 									bd.amqp++;
+									amqp = bd.amqp;
 									new_value = bd.amqp + bd.local;
+									local = bd.amqp;
 								}
-								String msg = "New message";
-								PushNotificationPayload payload = PushNotificationPayload.combined(msg, new_value, "default");
+								PushNotificationPayload payload = PushNotificationPayload.complex();
+								try {
+									payload.addAlert("New message");
+									payload.addBadge(new_value);
+									payload.addSound("default");
+									payload.addCustomDictionary("local", local);
+									payload.addCustomDictionary("amqp", amqp);
+								} catch (JSONException e) {
+									//logic error, not runtime
+									e.printStackTrace();
+									System.exit(1);
+								}
 								if(!production)
 									dev_queue.add(payload, device);
 								else
