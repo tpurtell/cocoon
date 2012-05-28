@@ -64,7 +64,7 @@ public class AMQPush {
 	HashMap<String, Listener> mListeners = new HashMap<String, Listener>();
 	LinkedBlockingDeque<Runnable> mJobs = new LinkedBlockingDeque<Runnable>();
 	String encodeAMQPname(String prefix, byte[] key) {
-		return prefix + Base64.encodeBase64(key, false, true) + "\n";
+		return prefix + Base64.encodeBase64URLSafeString(key) + "\n";
 	}
     byte[] decodeAMQPname(String prefix, String name) {
     	if(!name.startsWith(prefix))
