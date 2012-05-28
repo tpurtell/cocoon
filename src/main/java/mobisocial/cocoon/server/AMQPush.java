@@ -67,7 +67,7 @@ public class AMQPush {
 	LinkedBlockingDeque<Runnable> mJobs = new LinkedBlockingDeque<Runnable>();
 	String encodeAMQPname(String prefix, byte[] key) {
 		//TODO: WTF doesnt this put the = at the end automatically?
-		int excess = (key.length % 6);
+		int excess = (key.length * 8 % 6);
 		String pad = "";
 		int equals = (6 - excess) / 2;
 		for( int i = 0; i < equals; ++i)
