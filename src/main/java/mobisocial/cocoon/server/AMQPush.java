@@ -26,9 +26,11 @@ import javax.ws.rs.Produces;
 
 import mobisocial.cocoon.model.Listener;
 import mobisocial.cocoon.util.Database;
+import mobisocial.musubi.protocol.Message;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import org.apache.commons.codec.binary.Base64;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.json.JSONException;
 
 import com.mongodb.DBCollection;
@@ -41,6 +43,9 @@ import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 import com.sun.jersey.spi.resource.Singleton;
 
+import de.undercouch.bson4jackson.BsonFactory;
+import de.undercouch.bson4jackson.BsonParser.Feature;
+
 @Singleton
 @Path("/api/0/")
 public class AMQPush {
@@ -50,7 +55,9 @@ public class AMQPush {
 		public int local;
 	}
 	
-	HashMap<String, BadgeData> mCounts = new HashMap<String, BadgeData>();
+	ObjectMapper mMapper = new ObjectMapper(new BsonFactory().enable(Feature.HONOR_DOCUMENT_LENGTH));
+
+    HashMap<String, BadgeData> mCounts = new HashMap<String, BadgeData>();
 	HashMap<String, String> mQueues = new HashMap<String, String>();
 	HashMap<String, String> mConsumers = new HashMap<String, String>();
 	HashMap<String, HashSet<String>> mNotifiers = new HashMap<String, HashSet<String>>();
@@ -117,16 +124,29 @@ public class AMQPush {
 								return;
 							threadDevices.addAll(devices);
 						}
+						Message m = null;
+						try {
+							m = mMapper.readValue(body, Message.class);
+						} catch (IOException e) {
+							new RuntimeException("Failed to parse BSON of outer message", e).printStackTrace();
+							return;
+						}
+						String sender_exchange = encodeAMQPname("ibeidentity", m.s.i);
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
 								int amqp = 0;
 								int local = 0;
 								boolean production = false;
+								Listener l;
 								synchronized (mNotifiers) {
-									Listener l = mListeners.get(device);
-									production = l.production != null && l.production != false;
+									l = mListeners.get(device);
 								}
+								production = l.production != null && l.production != false;
+								//no self notify
+								if(l.identityExchanges.contains(sender_exchange))
+									continue;
+								
 								synchronized (mCounts) {
 									BadgeData bd = mCounts.get(device);
 									if(bd == null) {

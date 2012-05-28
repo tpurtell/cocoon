@@ -1,6 +1,6 @@
 package mobisocial.cocoon.model;
 
-import java.util.List;
+import java.util.HashSet;
 
 import net.vz.mongodb.jackson.Id;
 import net.vz.mongodb.jackson.MongoCollection;
@@ -15,7 +15,7 @@ public class Listener {
 	@Id 
 	public String _id;
 	
-	public List<String> identityExchanges;
+	public HashSet<String> identityExchanges;
 	public String deviceToken;
 	public Boolean production;
 	public Integer localUnread;
