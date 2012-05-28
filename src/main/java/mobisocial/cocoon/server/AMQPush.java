@@ -66,7 +66,13 @@ public class AMQPush {
 	HashMap<String, Listener> mListeners = new HashMap<String, Listener>();
 	LinkedBlockingDeque<Runnable> mJobs = new LinkedBlockingDeque<Runnable>();
 	String encodeAMQPname(String prefix, byte[] key) {
-		return prefix + Base64.encodeBase64URLSafeString(key) + "\n";
+		//TODO: WTF doesnt this put the = at the end automatically?
+		int excess = (key.length % 6);
+		String pad = "";
+		int equals = (6 - excess) / 2;
+		for( int i = 0; i < equals; ++i)
+			pad += "=";
+		return prefix + Base64.encodeBase64URLSafeString(key) + pad + "\n";
 	}
     byte[] decodeAMQPname(String prefix, String name) {
     	if(!name.startsWith(prefix))
