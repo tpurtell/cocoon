@@ -131,7 +131,7 @@ public class AMQPush {
 							new RuntimeException("Failed to parse BSON of outer message", e).printStackTrace();
 							return;
 						}
-						String sender_exchange = encodeAMQPname("ibeidentity", m.s.i);
+						String sender_exchange = encodeAMQPname("ibeidentity-", m.s.i);
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
