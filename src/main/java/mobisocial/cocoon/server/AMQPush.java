@@ -26,6 +26,8 @@ import javax.ws.rs.Produces;
 
 import mobisocial.cocoon.model.Listener;
 import mobisocial.cocoon.util.Database;
+import mobisocial.crypto.CorruptIdentity;
+import mobisocial.crypto.IBHashedIdentity;
 import mobisocial.musubi.protocol.Message;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
@@ -131,7 +133,13 @@ public class AMQPush {
 							new RuntimeException("Failed to parse BSON of outer message", e).printStackTrace();
 							return;
 						}
-						String sender_exchange = encodeAMQPname("ibeidentity-", m.s.i);
+						String sender_exchange;
+						try {
+							sender_exchange = encodeAMQPname("ibeidentity-", new IBHashedIdentity(m.s.i).at(0).identity_);
+						} catch (CorruptIdentity e) {
+							e.printStackTrace();
+							return;
+						}
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
