@@ -376,7 +376,6 @@ public class AMQPush {
 				bd = new BadgeData();
 				mCounts.put(deviceToken, bd);
 			}
-			bd.last = null;
 			bd.amqp = 0;
         }
         return "ok";
@@ -384,6 +383,7 @@ public class AMQPush {
 	public static class ResetUnread {
 		public String deviceToken;
 		public int count;
+		public Boolean background;
 	}
 	@POST
     @Path("resetunread")
@@ -396,7 +396,9 @@ public class AMQPush {
 				bd = new BadgeData();
 				mCounts.put(ru.deviceToken, bd);
 			}
-			bd.last = null;
+			if(ru.background == null || !ru.background) {
+				bd.last = null;
+			}
 			bd.local = ru.count;
 		}
         return "ok";
