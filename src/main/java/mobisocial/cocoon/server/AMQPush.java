@@ -177,12 +177,12 @@ public class AMQPush {
 									amqp = bd.amqp;
 									local = bd.local;
 									new_value = bd.amqp + bd.local;
+									last = bd.last;
 									if(bd.last == null) {
 										bd.last = now;
 									} else if(bd.last != null && now.getTime() - bd.last.getTime() > 3 * 60 * 1000) {
 										bd.last = null;
 									}
-									last = bd.last;
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
 								try {
