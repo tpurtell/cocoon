@@ -178,9 +178,7 @@ public class AMQPush {
 									local = bd.local;
 									new_value = bd.amqp + bd.local;
 									last = bd.last;
-									if(bd.last == null) {
-										bd.last = now;
-									}
+									bd.last = now;
 								}
 								//don't push twice in 3 minutes unless the person has opened musubi
 								if(last != null && now.getTime() - last.getTime() < 3 * 60 * 1000) {
