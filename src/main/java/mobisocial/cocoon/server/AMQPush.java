@@ -177,18 +177,20 @@ public class AMQPush {
 									amqp = bd.amqp;
 									local = bd.local;
 									new_value = bd.amqp + bd.local;
+									if(bd.last == null) {
+										bd.last = now;
+									} else if(bd.last != null && now.getTime() - bd.last.getTime() > 3 * 60 * 1000) {
+										bd.last = null;
+									}
 									last = bd.last;
-									bd.last = now;
-								}
-								//don't push twice in 3 minutes unless the person has opened musubi
-								if(last != null && now.getTime() - last.getTime() < 3 * 60 * 1000) {
-									continue;
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
 								try {
-									payload.addAlert("New message");
+									if(last == null) {
+										payload.addAlert("New message");
+										payload.addSound("default");
+									}
 									payload.addBadge(new_value);
-									payload.addSound("default");
 									payload.addCustomDictionary("local", local);
 									payload.addCustomDictionary("amqp", amqp);
 								} catch (JSONException e) {
