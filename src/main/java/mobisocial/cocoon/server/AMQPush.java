@@ -55,6 +55,7 @@ public class AMQPush {
 	static class BadgeData {
 		public int amqp;
 		public int local;
+		public Date last;
 	}
 	
 	ObjectMapper mMapper = new ObjectMapper(new BsonFactory().enable(Feature.HONOR_DOCUMENT_LENGTH));
@@ -149,11 +150,13 @@ public class AMQPush {
 							e.printStackTrace();
 							return;
 						}
+						Date now = new Date();
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
 								int amqp = 0;
 								int local = 0;
+								Date last;
 								boolean production = false;
 								Listener l;
 								synchronized (mNotifiers) {
@@ -172,8 +175,16 @@ public class AMQPush {
 									}
 									bd.amqp++;
 									amqp = bd.amqp;
+									local = bd.local;
 									new_value = bd.amqp + bd.local;
-									local = bd.amqp;
+									last = bd.last;
+									if(bd.last == null) {
+										bd.last = now;
+									}
+								}
+								//don't push twice in 3 minutes unless the person has opened musubi
+								if(now.getTime() - last.getTime() < 3 * 60 * 1000) {
+									continue;
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
 								try {
@@ -367,6 +378,7 @@ public class AMQPush {
 				bd = new BadgeData();
 				mCounts.put(deviceToken, bd);
 			}
+			bd.last = null;
 			bd.amqp = 0;
         }
         return "ok";
@@ -386,6 +398,7 @@ public class AMQPush {
 				bd = new BadgeData();
 				mCounts.put(ru.deviceToken, bd);
 			}
+			bd.last = null;
 			bd.local = ru.count;
 		}
         return "ok";
