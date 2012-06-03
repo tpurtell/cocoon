@@ -183,7 +183,7 @@ public class AMQPush {
 									}
 								}
 								//don't push twice in 3 minutes unless the person has opened musubi
-								if(now.getTime() - last.getTime() < 3 * 60 * 1000) {
+								if(last != null && now.getTime() - last.getTime() < 3 * 60 * 1000) {
 									continue;
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
