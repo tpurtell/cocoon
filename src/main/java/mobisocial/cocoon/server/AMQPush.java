@@ -139,6 +139,9 @@ public class AMQPush {
 							new RuntimeException("Failed to parse BSON of outer message", e).printStackTrace();
 							return;
 						}
+						//don't notify for blind (profile/delete/like msgs)
+						if(m.l)
+							return;
 						String sender_exchange;
 						try {
 							sender_exchange = encodeAMQPname("ibeidentity-", new IBHashedIdentity(m.s.i).at(0).identity_);
