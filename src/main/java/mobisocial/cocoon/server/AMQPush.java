@@ -181,7 +181,8 @@ public class AMQPush {
 									if(bd.last == null) {
 										bd.last = now;
 									} else if(bd.last != null && now.getTime() - bd.last.getTime() > 3 * 60 * 1000) {
-										bd.last = null;
+										bd.last = now;
+										last = null;
 									}
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
