@@ -8,6 +8,7 @@ import java.util.EnumSet;
 import javax.servlet.DispatcherType;
 
 import mobisocial.cocoon.model.Listener;
+import mobisocial.cocoon.model.Nearby;
 import mobisocial.cocoon.util.CrossDomainRequestFilter;
 import mobisocial.cocoon.util.Database;
 
@@ -86,6 +87,11 @@ public class Launcher {
 		BasicDBObject deviceToken = new BasicDBObject("deviceToken", 1);
 		Database.dbInstance().getCollection(Listener.COLLECTION).ensureIndex(deviceToken, "deviceTokenIndex", true);
 
+		BasicDBObject expiration = new BasicDBObject("expiration", 1);
+		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(expiration, "nearbyExpirationIndex", true);
+		BasicDBObject buckets = new BasicDBObject("buckets", 1);
+		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(buckets, "nearbyBucketIndex", true);
+		
 		try {
 			server.start();
 		} catch (Exception e) {
