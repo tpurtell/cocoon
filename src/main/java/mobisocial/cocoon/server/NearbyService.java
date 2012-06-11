@@ -17,6 +17,7 @@ import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
+import com.mongodb.DBObject;
 import com.sun.jersey.spi.resource.Singleton;
 
 @Singleton
@@ -54,22 +55,21 @@ public class NearbyService {
     @Produces("application/json")
     public List<String> find(HashSet<String> buckets) throws IOException {
         DBCollection rawCol = Database.dbInstance().getCollection(Nearby.COLLECTION);
-        JacksonDBCollection<Nearby, String> col = JacksonDBCollection.wrap(rawCol,
-        		Nearby.class, String.class);
-        DBCursor<Nearby> c = col.find(new BasicDBObject("buckets", new BasicDBObject("$in", buckets)));
+        //because of a bug in this version of jackson mongo mapper, we can't have strings larger than 64k
+        com.mongodb.DBCursor c = rawCol.find(new BasicDBObject("buckets", new BasicDBObject("$in", buckets)));
         List<String> r = new LinkedList<String>();
         long now = new Date().getTime();
         boolean need_cleanup = false;
 		while(c.hasNext()) {
-			Nearby n = c.next();
-			if(n.expiration < now) {
+			DBObject n = c.next();
+			if((Long)n.get("expiration") < now) {
 				need_cleanup = true;
 				continue;
 			}
-			r.add(n.data);
+			r.add((String)n.get("data"));
 		}
 		if(need_cleanup)
-			col.remove(new BasicDBObject("expiration", new BasicDBObject("$lt", now)));
+			rawCol.remove(new BasicDBObject("expiration", new BasicDBObject("$lt", now)));
 		return r;
     }
 	
