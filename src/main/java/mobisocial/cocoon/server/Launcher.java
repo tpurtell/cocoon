@@ -88,9 +88,9 @@ public class Launcher {
 		Database.dbInstance().getCollection(Listener.COLLECTION).ensureIndex(deviceToken, "deviceTokenIndex", true);
 
 		BasicDBObject expiration = new BasicDBObject("expiration", 1);
-		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(expiration, "nearbyExpirationIndex", true);
+		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(expiration, "nearbyExpirationIndex", false);
 		BasicDBObject buckets = new BasicDBObject("buckets", 1);
-		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(buckets, "nearbyBucketIndex", true);
+		Database.dbInstance().getCollection(Nearby.COLLECTION).ensureIndex(buckets, "nearbyBucketIndex", false);
 		
 		try {
 			server.start();
