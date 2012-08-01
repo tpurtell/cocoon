@@ -55,6 +55,7 @@ public class AMQPush {
 	static class BadgeData {
 		public int amqp;
 		public int local;
+		public Date last;
 	}
 	
 	ObjectMapper mMapper = new ObjectMapper(new BsonFactory().enable(Feature.HONOR_DOCUMENT_LENGTH));
@@ -139,6 +140,9 @@ public class AMQPush {
 							new RuntimeException("Failed to parse BSON of outer message", e).printStackTrace();
 							return;
 						}
+						//don't notify for blind (profile/delete/like msgs)
+						if(m.l)
+							return;
 						String sender_exchange;
 						try {
 							sender_exchange = encodeAMQPname("ibeidentity-", new IBHashedIdentity(m.s.i).at(0).identity_);
@@ -146,11 +150,13 @@ public class AMQPush {
 							e.printStackTrace();
 							return;
 						}
+						Date now = new Date();
 					    for(String device : threadDevices) {
 							try {
 								int new_value = 0;
 								int amqp = 0;
 								int local = 0;
+								Date last;
 								boolean production = false;
 								Listener l;
 								synchronized (mNotifiers) {
@@ -169,14 +175,23 @@ public class AMQPush {
 									}
 									bd.amqp++;
 									amqp = bd.amqp;
+									local = bd.local;
 									new_value = bd.amqp + bd.local;
-									local = bd.amqp;
+									last = bd.last;
+									if(bd.last == null) {
+										bd.last = now;
+									} else if(bd.last != null && now.getTime() - bd.last.getTime() > 3 * 60 * 1000) {
+										bd.last = now;
+										last = null;
+									}
 								}
 								PushNotificationPayload payload = PushNotificationPayload.complex();
 								try {
-									payload.addAlert("New message");
+									if(last == null) {
+										payload.addAlert("New message");
+										payload.addSound("default");
+									}
 									payload.addBadge(new_value);
-									payload.addSound("default");
 									payload.addCustomDictionary("local", local);
 									payload.addCustomDictionary("amqp", amqp);
 								} catch (JSONException e) {
@@ -371,6 +386,7 @@ public class AMQPush {
 	public static class ResetUnread {
 		public String deviceToken;
 		public int count;
+		public Boolean background;
 	}
 	@POST
     @Path("resetunread")
@@ -382,6 +398,9 @@ public class AMQPush {
 			if(bd == null) {
 				bd = new BadgeData();
 				mCounts.put(ru.deviceToken, bd);
+			}
+			if(ru.background == null || !ru.background) {
+				bd.last = null;
 			}
 			bd.local = ru.count;
 		}
