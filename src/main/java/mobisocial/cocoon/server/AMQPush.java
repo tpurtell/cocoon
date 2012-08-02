@@ -263,7 +263,7 @@ public class AMQPush {
 									last = null;
 								}
 							}
-							if (l.platform.equals("android")) {
+							if (l.platform != null && l.platform.equals("android")) {
 								com.google.android.gcm.server.Message message = new com.google.android.gcm.server.Message.Builder()
 										.addData("amqp", Integer.toString(amqp))
 										.build();
