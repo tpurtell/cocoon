@@ -19,4 +19,7 @@ public class Listener {
 	public String deviceToken;
 	public Boolean production;
 	public Integer localUnread;
+	//if null then apple
+	public String platform;
+	public String canonicalToken;
 }

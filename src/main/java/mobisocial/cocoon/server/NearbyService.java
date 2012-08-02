@@ -12,7 +12,6 @@ import javax.ws.rs.Produces;
 
 import mobisocial.cocoon.model.Nearby;
 import mobisocial.cocoon.util.Database;
-import net.vz.mongodb.jackson.DBCursor;
 import net.vz.mongodb.jackson.JacksonDBCollection;
 
 import com.mongodb.BasicDBObject;
@@ -23,21 +22,22 @@ import com.sun.jersey.spi.resource.Singleton;
 @Singleton
 @Path("/nearbyapi/0/")
 public class NearbyService {
-	
+
 	public NearbyService() {
 	}
-	
-	@POST
-    @Path("sharegroup")
-    @Produces("application/json")
-    public String share(Nearby n) throws IOException {
-        DBCollection rawCol = Database.dbInstance().getCollection(Nearby.COLLECTION);
-        JacksonDBCollection<Nearby, String> col = JacksonDBCollection.wrap(rawCol,
-        		Nearby.class, String.class);
 
-        if(n.buckets == null || n.buckets.size() == 0)
-        	throw new RuntimeException("missing buckets");
-		
+	@POST
+	@Path("sharegroup")
+	@Produces("application/json")
+	public String share(Nearby n) throws IOException {
+		DBCollection rawCol = Database.dbInstance().getCollection(
+				Nearby.COLLECTION);
+		JacksonDBCollection<Nearby, String> col = JacksonDBCollection.wrap(
+				rawCol, Nearby.class, String.class);
+
+		if (n.buckets == null || n.buckets.size() == 0)
+			throw new RuntimeException("missing buckets");
+
         if(n.data == null || n.data.length() == 0)
         	throw new RuntimeException("missing data");
         
