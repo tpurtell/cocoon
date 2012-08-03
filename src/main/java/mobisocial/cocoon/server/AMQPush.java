@@ -103,15 +103,15 @@ public class AMQPush {
 			for (;;) {
 				try {
 					mSender = new Sender(mGoogleKey);
-					push();
+					for(;;)
+						push();
 				} catch (Throwable e) {
-					throw new RuntimeException(e);
-				}
-				try {
-					Thread.sleep(30000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
+					try {
+						Thread.sleep(30000);
+					} catch (InterruptedException e1) {
+						// TODO Auto-generated catch block
+					}
 				}
 			}
 		}
