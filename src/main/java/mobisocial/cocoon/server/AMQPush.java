@@ -95,6 +95,7 @@ public class AMQPush {
 
 	private LinkedBlockingQueue<Pair<com.google.android.gcm.server.Message, String>> mGooglePushes = new LinkedBlockingQueue<Pair<com.google.android.gcm.server.Message, String>>();
 
+	GooglePushThread mGooglePushThread = new GooglePushThread();
 	class GooglePushThread extends Thread {
 		Sender mSender;
 
@@ -377,6 +378,7 @@ public class AMQPush {
 		mGoogleKey = props.getProperty("server.key");
 		loadAll();
 		mPushThread.start();
+		mGooglePushThread.start();
 	}
 
 	private void loadAll() {
